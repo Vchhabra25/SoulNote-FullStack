@@ -3,4 +3,3 @@ flask-cors
 transformers
 torch
 openai-whisper
-gunicorn
