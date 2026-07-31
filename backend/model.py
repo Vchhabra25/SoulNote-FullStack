@@ -1,35 +1,43 @@
-import whisper
+import os
+from groq import Groq
 from transformers import pipeline
 
-# Models are loaded only once when first used
-whisper_model = None
+# Initialize Groq client
+client = Groq(
+    api_key=os.environ.get("GROQ_API_KEY")
+)
+
+# Emotion model (loaded only once)
 emotion_classifier = None
-
-
-def get_whisper_model():
-    global whisper_model
-    if whisper_model is None:
-        whisper_model = whisper.load_model("tiny")
-    return whisper_model
 
 
 def get_emotion_classifier():
     global emotion_classifier
+
     if emotion_classifier is None:
         emotion_classifier = pipeline(
             task="text-classification",
             model="j-hartmann/emotion-english-distilroberta-base",
             top_k=1
         )
+
     return emotion_classifier
 
 
 def transcribe_audio(audio_path):
-    result = get_whisper_model().transcribe(audio_path)
-    return result["text"]
+    with open(audio_path, "rb") as audio_file:
+
+        transcription = client.audio.transcriptions.create(
+            file=audio_file,
+            model="whisper-large-v3-turbo",
+            response_format="text"
+        )
+
+    return transcription
 
 
 def detect_emotion(text):
+
     result = get_emotion_classifier()(text)
 
     emotion = result[0][0]["label"]
@@ -42,6 +50,7 @@ def detect_emotion(text):
 
 
 def get_recommendation(emotion):
+
     recommendations = {
         "joy": "Keep doing activities that make you happy.",
         "sadness": "Consider talking to a trusted friend or taking a short walk.",
