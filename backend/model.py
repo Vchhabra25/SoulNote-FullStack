@@ -1,32 +1,15 @@
 import os
+import json
 from groq import Groq
-from transformers import pipeline
 
 # Initialize Groq client
 client = Groq(
     api_key=os.environ.get("GROQ_API_KEY")
 )
 
-# Emotion model (loaded only once)
-emotion_classifier = None
-
-
-def get_emotion_classifier():
-    global emotion_classifier
-
-    if emotion_classifier is None:
-        emotion_classifier = pipeline(
-            task="text-classification",
-            model="j-hartmann/emotion-english-distilroberta-base",
-            top_k=1
-        )
-
-    return emotion_classifier
-
 
 def transcribe_audio(audio_path):
     with open(audio_path, "rb") as audio_file:
-
         transcription = client.audio.transcriptions.create(
             file=audio_file,
             model="whisper-large-v3-turbo",
@@ -38,14 +21,55 @@ def transcribe_audio(audio_path):
 
 def detect_emotion(text):
 
-    result = get_emotion_classifier()(text)
+    prompt = f"""
+You are an emotion classifier.
 
-    emotion = result[0][0]["label"]
-    confidence = result[0][0]["score"]
+Analyze the following text and return ONLY valid JSON.
+
+Possible emotions:
+- joy
+- sadness
+- anger
+- fear
+- surprise
+- disgust
+- neutral
+
+Return ONLY this format:
+
+{{
+    "emotion": "joy",
+    "confidence": 95
+}}
+
+Text:
+{text}
+"""
+
+    completion = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0
+    )
+
+    response = completion.choices[0].message.content.strip()
+
+    # Remove markdown if Groq returns ```json ... ```
+    if response.startswith("```"):
+        response = response.replace("```json", "")
+        response = response.replace("```", "")
+        response = response.strip()
+
+    result = json.loads(response)
 
     return {
-        "emotion": emotion,
-        "confidence": round(confidence * 100, 2)
+        "emotion": result["emotion"],
+        "confidence": result["confidence"]
     }
 
 
@@ -62,6 +86,6 @@ def get_recommendation(emotion):
     }
 
     return recommendations.get(
-        emotion,
+        emotion.lower(),
         "Take care of your mental well-being."
     )
