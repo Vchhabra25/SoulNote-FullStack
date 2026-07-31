@@ -1,32 +1,47 @@
 import whisper
 from transformers import pipeline
 
-# Load Whisper model
-whisper_model = whisper.load_model("tiny")
+# Models are loaded only once when first used
+whisper_model = None
+emotion_classifier = None
 
-# Load Emotion Detection model
-emotion_classifier = pipeline(
-    "text-classification",
-    model="j-hartmann/emotion-english-distilroberta-base",
-    top_k=1
-)
+
+def get_whisper_model():
+    global whisper_model
+    if whisper_model is None:
+        whisper_model = whisper.load_model("tiny")
+    return whisper_model
+
+
+def get_emotion_classifier():
+    global emotion_classifier
+    if emotion_classifier is None:
+        emotion_classifier = pipeline(
+            task="text-classification",
+            model="j-hartmann/emotion-english-distilroberta-base",
+            top_k=1
+        )
+    return emotion_classifier
+
 
 def transcribe_audio(audio_path):
-    result = whisper_model.transcribe(audio_path)
+    result = get_whisper_model().transcribe(audio_path)
     return result["text"]
 
+
 def detect_emotion(text):
-    result = emotion_classifier(text)
+    result = get_emotion_classifier()(text)
+
     emotion = result[0][0]["label"]
-    score = result[0][0]["score"]
+    confidence = result[0][0]["score"]
 
     return {
         "emotion": emotion,
-        "confidence": round(score * 100, 2)
+        "confidence": round(confidence * 100, 2)
     }
 
-def get_recommendation(emotion):
 
+def get_recommendation(emotion):
     recommendations = {
         "joy": "Keep doing activities that make you happy.",
         "sadness": "Consider talking to a trusted friend or taking a short walk.",
