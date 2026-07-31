@@ -184,7 +184,7 @@ const analyzeAudio = async () => {
     formData.append("audio", audioFile);
 
     const response = await fetch(
-      "http://127.0.0.1:5000/analyze",
+      "https://soulnote-fullstack.onrender.com/analyze",
       {
         method: "POST",
         body: formData,
