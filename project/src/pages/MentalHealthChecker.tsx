@@ -114,6 +114,7 @@ const MentalHealthChecker: React.FC<MentalHealthCheckerProps> = ({ onNavigateHom
   const [loading, setLoading] = useState(false);
   const [aiResult, setAiResult] = useState<any>(null);
   const [musicGenre, setMusicGenre] = useState("Bollywood");
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
 
   const handleAnswer = (value: number) => {
     const newAnswers = [...answers];
@@ -172,8 +173,16 @@ const MentalHealthChecker: React.FC<MentalHealthCheckerProps> = ({ onNavigateHom
     return 'bg-red-500';
   };
 const analyzeAudio = async () => {
-  if (!audioFile) {
-    alert("Please select an audio file");
+  let fileToSend: File;
+
+  if (recordedBlob) {
+    fileToSend = new File([recordedBlob], "recording.webm", {
+      type: "audio/webm",
+    });
+  } else if (audioFile) {
+    fileToSend = audioFile;
+  } else {
+    alert("Please record or upload audio");
     return;
   }
 
@@ -181,7 +190,7 @@ const analyzeAudio = async () => {
     setLoading(true);
 
     const formData = new FormData();
-    formData.append("audio", audioFile);
+    formData.append("audio", fileToSend);
 
     const response = await fetch(
       "https://soulnote-fullstack.onrender.com/analyze",
@@ -190,16 +199,49 @@ const analyzeAudio = async () => {
         body: formData,
       }
     );
-    
-    const data = await response.json();
 
+    const data = await response.json();
     setAiResult(data);
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     alert("Analysis failed");
   } finally {
     setLoading(false);
   }
+};
+const startRecording = async () => {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: true,
+  });
+
+  const recorder = new MediaRecorder(stream);
+
+  const chunks: Blob[] = [];
+
+  recorder.ondataavailable = (e) => {
+    chunks.push(e.data);
+  };
+
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, {
+      type: "audio/webm",
+    });
+
+    setRecordedBlob(blob);
+
+    stream.getTracks().forEach((track) => track.stop());
+  };
+
+  recorder.start();
+
+  setMediaRecorder(recorder);
+  setIsRecording(true);
+};
+const stopRecording = () => {
+  if (!mediaRecorder) return;
+
+  mediaRecorder.stop();
+  setIsRecording(false);
 };
 const findMusic = () => {
   if (!aiResult) return;
@@ -388,22 +430,40 @@ const findMusic = () => {
     AI Voice Analysis
   </h3>
 
-  <input
-    type="file"
-    accept="audio/*"
-    onChange={(e) =>
-      setAudioFile(
-        e.target.files?.[0] || null
-      )
-    }
-  />
+  <div className="flex flex-col gap-4 mt-4">
 
-  <button
-    onClick={analyzeAudio}
-    className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg"
-  >
-    {loading ? "Analyzing..." : "Analyze Voice"}
-  </button>
+  {!isRecording ? (
+    <button
+      onClick={startRecording}
+      className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+    >
+      🎤 Start Recording
+    </button>
+  ) : (
+    <button
+      onClick={stopRecording}
+      className="bg-gray-700 text-white px-4 py-2 rounded-lg hover:bg-gray-800"
+    >
+      ⏹ Stop Recording
+    </button>
+  )}
+
+  {recordedBlob && (
+    <>
+      <p className="text-green-600 font-medium">
+        ✅ Recording Ready
+      </p>
+
+      <button
+        onClick={analyzeAudio}
+        className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+      >
+        {loading ? "Analyzing..." : "Analyze Voice"}
+      </button>
+    </>
+  )}
+
+</div>
 
   {aiResult && (
     <div className="mt-6 bg-slate-50 p-4 rounded-lg">
